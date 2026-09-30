@@ -24,12 +24,16 @@ try {
   for(const button of await page.locator('nav button').all()){
    expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(48);
   }
-  await page.screenshot({path:`/private/tmp/dibi-mobile-${viewport.width}.png`,fullPage:true});
+  await page.screenshot({animations:'disabled',path:`/private/tmp/dibi-mobile-${viewport.width}.png`,fullPage:true});
 
   // A real QR image exercises decoding, recording and the mobile result together.
   const code='MOBILE-CASE-Sensitive-001';
   await page.locator('#qr-upload').setInputFiles({name:'ticket.png',mimeType:'image/png',buffer:await QRCode.toBuffer(code)});
   await expect(page.getByRole('heading',{name:'Ticket scanned',exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveAttribute('data-tone','success');
+  const resultBox=await page.getByRole('dialog').boundingBox();
+  expect(resultBox).toEqual({x:0,y:0,width:viewport.width,height:viewport.height});
+  await page.screenshot({animations:'disabled',path:`/private/tmp/dibi-success-${viewport.width}.png`});
   await fitsScreen(page.getByRole('button',{name:'Scan next ticket',exact:true}));
   await page.getByRole('button',{name:'Scan next ticket',exact:true}).tap();
   await page.getByRole('button',{name:'Enter ticket code'}).tap();
@@ -40,6 +44,8 @@ try {
   await page.getByRole('button',{name:'Check ticket',exact:true}).tap();
   await expect(page.getByRole('heading',{name:'Already scanned',exact:true})).toBeVisible();
   await expect(page.locator('.count')).toHaveText('1 / 300');
+  await expect(page.getByRole('dialog')).toHaveAttribute('data-tone','duplicate');
+  await page.screenshot({animations:'disabled',path:`/private/tmp/dibi-amber-${viewport.width}.png`});
   await fitsScreen(page.getByRole('button',{name:'Scan next ticket',exact:true}));
   await fitsScreen(page.getByRole('button',{name:'Send to help queue'}));
   await page.getByRole('button',{name:'Scan next ticket',exact:true}).tap();
@@ -48,7 +54,7 @@ try {
   await page.getByRole('button',{name:'Enter ticket code'}).tap();
   await input.fill('https://tickets.example/event/'+ 'long-ticket-reference-'.repeat(100));
   await page.getByRole('button',{name:'Check ticket',exact:true}).tap();
-  await page.screenshot({path:'/private/tmp/dibi-long-result.png'});
+  await page.screenshot({animations:'disabled',path:'/private/tmp/dibi-long-result.png'});
   await fitsScreen(page.getByRole('button',{name:'Scan next ticket',exact:true}));
   await page.getByRole('dialog').getByRole('button',{name:'View scan log',exact:true}).tap();
   await expect(page.locator('tbody tr')).toHaveCount(2);
@@ -56,7 +62,7 @@ try {
   expect(await page.locator('.table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.getByRole('searchbox').fill(code);
   await expect(page.locator('tbody tr')).toHaveCount(1);
-  await page.screenshot({path:`/private/tmp/dibi-mobile-log-${viewport.width}.png`,fullPage:true});
+  await page.screenshot({animations:'disabled',path:`/private/tmp/dibi-mobile-log-${viewport.width}.png`,fullPage:true});
   await page.getByRole('button',{name:'View ticket',exact:true}).tap();
   await page.getByRole('button',{name:'Add guest details (optional)'}).tap();
   // Simulate the reduced visible space of a keyboard, then rotate to landscape.
@@ -73,8 +79,30 @@ try {
   expect(landscapeAction.y).toBeGreaterThanOrEqual(0);
   expect(landscapeAction.y+landscapeAction.height).toBeLessThanOrEqual(375);
   await page.getByRole('button',{name:'Scan next ticket',exact:true}).tap();
+  await page.setViewportSize(viewport);
+  await page.locator('#qr-upload').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('not an image')});
+  await expect(page.getByRole('heading',{name:'Image not readable'})).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveAttribute('data-tone','error');
+  await fitsScreen(page.getByRole('button',{name:'Upload another image'}));
+  await expect(page.locator('.count')).toHaveText('2 / 300');
+  await page.screenshot({animations:'disabled',path:`/private/tmp/dibi-error-${viewport.width}.png`});
+  await page.getByRole('dialog').getByRole('button',{name:'Enter ticket code',exact:true}).tap();
+  await expect(page.getByRole('dialog')).not.toHaveClass(/status-screen/);
+  await page.getByRole('button',{name:'Close dialog'}).tap();
+  const blankImage=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=200;return canvas.toDataURL('image/png').split(',')[1]});
+  await page.locator('#qr-upload').setInputFiles({name:'no-qr.png',mimeType:'image/png',buffer:Buffer.from(blankImage,'base64')});
+  await expect(page.getByRole('heading',{name:'QR not found',exact:true})).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveAttribute('data-tone','error');
+  await expect(page.locator('.count')).toHaveText('2 / 300');
+  await page.getByRole('button',{name:'Back to scanner'}).tap();
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.locator('#qr-upload').setInputFiles({name:'empty-ticket.png',mimeType:'image/png',buffer:await QRCode.toBuffer(' ')});
+  await expect(page.getByRole('heading',{name:'Scan failed',exact:true})).toBeVisible();
+  expect(await page.locator('.result-symbol').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  await expect(page.locator('.count')).toHaveText('2 / 300');
+  await page.getByRole('button',{name:'Back to scanner'}).tap();
   expect(errors).toEqual([]);
   await context.close();
-  console.log(`PASS mobile ${viewport.width}×${viewport.height}: touch navigation, QR image, duplicate, long QR, scan log, details and landscape.`);
+  console.log(`PASS mobile ${viewport.width}×${viewport.height}: touch navigation, QR image, duplicate, long QR, scan log, details, landscape, full-screen colours, failures and reduced motion.`);
  }
 }finally{await browser.close()}

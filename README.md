@@ -22,6 +22,8 @@ The app opens in **Staff check-in**, with no fictional attendees in the desk log
 
 **Scan log** lists recorded tickets, supports searching by ticket/QR code, and exports a CSV. Previously collected guest details are preserved. Adding a name, email or company remains optional under an individual ticket’s details.
 
+Scan results fill the screen: **green** for a recorded ticket, **amber** for an already-scanned ticket and **red** for an unsuccessful scan. A short symbol animation confirms the outcome; reduced-motion preferences disable it. Results stay visible until staff choose the next action. Unreadable images, invalid QR content and camera errors offer retry or manual-entry actions without increasing the count.
+
 Duplicate tickets can be sent to the help queue for staff follow-up.
 
 ## On a phone

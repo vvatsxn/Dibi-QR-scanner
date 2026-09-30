@@ -271,3 +271,85 @@ button,a{touch-action:manipulation}
  .modal-actions{padding-block:8px}.modal-actions .centered{min-height:40px}
 }
 @media(prefers-reduced-motion:reduce){button,#toast{transition:none}}
+
+/* Full-screen scan feedback: one short animation, then a stable staff action. */
+dialog.status-screen{
+ --outcome-bg:#147d50;--outcome-ink:#fff8ec;
+ inset:var(--viewport-top,0px) 0 auto;transform:none;margin:0;
+ width:100%;max-width:none;height:var(--viewport-height,100dvh);max-height:none;
+ color:var(--outcome-ink);background:var(--outcome-bg);box-shadow:none;
+ padding:0 max(20px,env(safe-area-inset-right)) 0 max(20px,env(safe-area-inset-left));
+}
+.status-screen[data-tone=error]{--outcome-bg:#b83236}
+.status-screen[data-tone=duplicate]{--outcome-bg:#efb648;--outcome-ink:#35250d}
+.status-screen .status-header{display:flex;align-items:center;gap:20px;min-height:80px;flex-shrink:0;padding-top:env(safe-area-inset-top);padding-right:56px}
+.status-header img{width:80px;height:auto}
+.status-header span{font-size:11px;letter-spacing:.1em}
+.status-screen[data-tone=duplicate] .status-header img{filter:brightness(0)}
+.status-screen .dialog-close{top:calc(16px + env(safe-area-inset-top));right:max(16px,env(safe-area-inset-right));width:48px;height:48px;color:inherit;background:transparent;border:1px solid currentColor;border-radius:50%}
+.status-screen .dialog-close:hover{background:#ffffff18}
+.status-screen button:focus-visible{outline:3px solid var(--outcome-ink);outline-offset:4px}
+.status-screen .result{flex:1;display:flex;overflow:auto;text-align:center;padding:20px 0;min-height:0}
+.status-content{width:100%;max-width:640px;margin:auto;animation:outcome-rise .38s ease-out both}
+.status-screen .result-symbol{position:relative;display:grid;width:112px;height:112px;margin:0 auto 28px;border:2px solid currentColor;color:inherit;animation:outcome-mark .48s cubic-bezier(.2,.8,.2,1) both}
+.status-screen .result-symbol:after{content:'';position:absolute;inset:-2px;border:1px solid currentColor;border-radius:50%;animation:outcome-ring .7s ease-out both;pointer-events:none}
+.status-screen .result-symbol svg{width:54px;height:54px;stroke-width:2.2;overflow:visible}
+.status-screen .result-symbol svg path{stroke-dasharray:60;stroke-dashoffset:0;animation:outcome-draw .5s .1s ease-out both}
+.status-screen .eyebrow{color:inherit;font-size:11px;letter-spacing:.14em}
+.status-screen h2{font-size:clamp(40px,6vw,76px);line-height:1.02;letter-spacing:-.04em;margin:14px 0 18px;outline:none}
+.status-screen .status-content>p{font-size:17px;line-height:1.5;color:inherit;max-width:440px;margin:0 auto 20px}
+.status-screen .scan-receipt{max-width:420px;margin:24px auto 0;padding:16px 0;border-color:currentColor;gap:8px;text-align:center}
+.status-screen .scan-receipt code{color:inherit;font-size:20px;max-height:64px;flex-shrink:0}
+.status-screen .scan-receipt .small-label,.status-screen .scan-receipt>span:last-child{color:inherit}
+.status-screen .modal-actions{width:100%;max-width:440px;align-self:center;flex-shrink:0;padding:16px 0 max(20px,env(safe-area-inset-bottom));border:0;background:transparent}
+.status-screen .btn{min-height:52px;font-size:15px}
+.status-screen .dark{background:var(--outcome-ink);color:var(--outcome-bg)}
+.status-screen .dark:hover{filter:brightness(.94)}
+.status-screen .outline{color:inherit;border-color:currentColor;background:transparent}
+.status-screen .outline:hover{background:#ffffff18}
+.status-screen .centered{color:inherit;min-height:48px;font-size:14px}
+.status-screen .guest-ticket,.status-screen .unknown-code{background:#00000012;color:inherit;justify-content:center;max-width:440px;margin:20px auto}
+.status-screen .guest-ticket p,.status-screen .guest-ticket code{color:inherit}
+.status-screen .person-avatar{background:#00000018}
+.status-screen .staff-action{color:inherit;border-color:currentColor;max-width:440px;margin:20px auto 0}
+.status-screen .camera-error{background:none;padding:0;display:block}
+.failure-note{font-size:13px;margin-top:20px}
+@keyframes outcome-rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes outcome-mark{from{transform:scale(.75)}to{transform:scale(1)}}
+@keyframes outcome-ring{from{opacity:.55;transform:scale(1)}to{opacity:0;transform:scale(1.5)}}
+@keyframes outcome-draw{from{stroke-dashoffset:60}to{stroke-dashoffset:0}}
+@media(max-width:760px){
+ .status-screen .status-header{min-height:72px;gap:16px}.status-header img{width:66px}
+ .status-screen .result{padding:12px 0}
+ .status-screen .result-symbol{width:88px;height:88px;margin-bottom:24px}
+ .status-screen .result-symbol svg{width:44px;height:44px}
+ .status-screen h2{font-size:clamp(38px,11vw,58px)}
+ .status-screen .status-content>p{font-size:15px;max-width:340px}
+ .status-screen .scan-receipt{margin-top:20px}
+ .status-screen .scan-receipt code{font-size:18px}
+ .status-screen .modal-actions{padding-top:12px}
+}
+@media(max-height:650px){
+ .status-screen .status-header{min-height:60px}
+ .status-screen .result-symbol{width:60px;height:60px;margin-bottom:14px}
+ .status-screen .result-symbol svg{width:32px;height:32px}
+ .status-screen h2{font-size:36px;margin:10px 0}
+ .status-screen .scan-receipt{margin-top:14px;padding:12px 0}
+ .status-screen .status-content>p{margin-bottom:12px;font-size:14px}
+ .status-screen .modal-actions{padding-top:8px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+ .status-screen .btn{min-height:48px}
+}
+@media(max-height:450px) and (min-width:540px){
+ .status-screen[open]{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.8fr);grid-template-rows:60px minmax(0,1fr);column-gap:30px}
+ .status-screen .status-header{grid-column:1/-1}
+ .status-screen .result{height:100%}
+ .status-screen .modal-actions{align-self:center}
+ .status-screen .result-symbol{width:48px;height:48px}
+ .status-screen .status-content>p{font-size:13px}
+ .status-screen h2{font-size:32px}
+ .status-screen .scan-receipt{margin-top:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ .status-screen .status-content,.status-screen .result-symbol,.status-screen .result-symbol:after,.status-screen .result-symbol svg path{animation:none}
+ .status-screen .result-symbol:after{display:none}
+}
