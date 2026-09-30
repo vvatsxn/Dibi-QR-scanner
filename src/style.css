@@ -359,3 +359,5 @@ dialog.status-screen{
 .qr-choice code{grid-column:1;overflow-wrap:anywhere;max-height:100px;overflow:auto;font-size:16px}
 .qr-choice svg{grid-column:2;grid-row:1/3}
 .qr-choice:hover{background:#ecdfd0}
+.auto-scan-note{text-align:center;font-size:12px;margin:4px 0 0;color:inherit}
+.status-screen #result-stop-camera{margin-top:0;opacity:.85}

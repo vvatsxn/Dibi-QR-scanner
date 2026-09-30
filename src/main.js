@@ -17,12 +17,13 @@ for(const [code,name] of [['DEMO-EB-001','Ticket 1'],['DEMO-EB-002','Ticket 2']]
 const savedDesk=readSaved('dibi-desk-v2');
 let deskState=savedDesk?.version===2&&Array.isArray(savedDesk.attendees)?savedDesk:createDeskState(legacy);
 let state=deskState;
-let view='checkin', filter='all', search='', result=null, stream=null, frame=null, cameraGeneration=0, previousFocus=null, registering=false;
+let view='checkin', filter='all', search='', result=null, stream=null, frame=null, cameraGeneration=0, previousFocus=null, registering=false, resultTimer=null;
 const $=s=>document.querySelector(s);
 const time=t=>new Date(t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 function save(){try{localStorage.setItem(workspace==='desk'?'dibi-desk-v2':'dibi-demo-v1',JSON.stringify(state))}catch{toast('Browser storage unavailable. Keep this tab open to retain check-ins.')}}
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),4000)}
 function render(){
+ clearResultTimer();if(stream)stopCamera();
  const count=state.attendees.filter(a=>a.checkedIn).length;
  const total=workspace==='desk'?Math.max(state.target||300,count):Math.max(state.attendees.length,1);
  $('#app').innerHTML=`
@@ -52,7 +53,7 @@ function checkinView(){
     <div class="scanner-top"><span id="camera-status">Camera off</span>${icon('camera')}</div>
     <video id="camera" playsinline muted hidden></video><div class="live-scan-frame" aria-hidden="true"></div>
     <div class="scanner-content" id="scanner-content"><div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i>${icon('scan')}</div><h3>Ready to scan</h3><button class="btn lime" id="start-camera">Open camera ${icon('arrow')}</button></div>
-    <button class="camera-stop" id="stop-camera" hidden>Stop camera</button><span class="scanner-foot">Hold the ticket’s QR code inside the frame.</span>
+    <button class="camera-stop" id="stop-camera" hidden>Turn camera off</button><span class="scanner-foot">Hold the ticket’s QR code inside the frame.</span>
    </div>
    <div id="camera-message" role="status"></div>
    <div class="scan-tools"><button class="text-btn" id="upload-btn">${icon('upload')}Upload QR image</button><button class="text-btn" id="manual-btn">Enter ticket code ${icon('arrow')}</button></div>
@@ -70,11 +71,11 @@ function checkinView(){
 function attendeesView(){if(workspace==='desk')return scanLogView();return `<section class="list-card"><div class="list-toolbar"><label class="search-field">${icon('search')}<input id="attendee-search" type="search" placeholder="Search name, company or ticket code" value="${esc(search)}" aria-label="Search attendees"></label><div class="filters" aria-label="Filter attendees">${[['all','Everyone'],['waiting','Not arrived'],['arrived','Checked in']].map(([v,l])=>`<button data-filter="${v}" class="${filter===v?'selected':''}" aria-pressed="${filter===v}">${l}</button>`).join('')}</div><button class="btn outline" id="export">${icon('download')}Export</button></div><div id="attendee-results">${attendeeRows()}</div></section>`}
 function attendeeRows(){if(workspace==='desk')return scanLogRows();const rows=state.attendees.filter(a=>(filter==='all'||(filter==='arrived'?!!a.checkedIn:!a.checkedIn))&&`${a.name} ${a.email||''} ${a.company} ${a.id} ${(a.qrCodes||[]).join(' ')}`.toLowerCase().includes(search.toLowerCase()));return `<div class="table-summary">${rows.length} attendees <span>${workspace==='desk'?'Registered guests only':'Demo guest list'}</span></div><div class="table-scroll"><table><thead><tr><th>ATTENDEE</th><th>TICKET</th><th>STATUS</th><th><span class="sr-only">Action</span></th></tr></thead><tbody>${rows.map(a=>`<tr><td><strong>${esc(a.name)}</strong><span>${esc(a.company)}</span>${a.email?`<span>${esc(a.email)}</span>`:''}</td><td>${a.type}<span>${a.id}${a.qrCodes?.length?' · Existing QR linked':''}</span></td><td><span class="status-badge ${a.checkedIn?'arrived':''}">${a.checkedIn?`${icon('check')} In at ${time(a.checkedIn)}`:'Not arrived'}</span></td><td><button class="btn ${a.checkedIn?'outline':'dark'} compact" data-attendee="${a.id}">${a.checkedIn?'View ticket':'Check in'} ${icon('arrow')}</button></td></tr>`).join('')}</tbody></table></div>${!rows.length?'<div class="empty"><h3>No guests found</h3><p>Try a different name or ticket code.</p></div>':''}`}
 function queueView(){return `<section class="list-card"><div class="card-heading"><h2>Needs a helping hand <span class="pill">${state.queue.length}</span></h2><span class="subtle">Staff follow-up</span></div>${state.queue.length?state.queue.map(q=>`<div class="queue-row"><span class="queue-warning">${icon('warning')}</span><div><h3>${esc(q.name)}</h3><p>${esc(q.reason)} · ${esc(q.ticket)} · ${time(q.time)}</p></div><button class="btn outline" data-resolve="${esc(q.ticket)}">Review ${icon('arrow')}</button></div>`).join(''):`<div class="empty"><div class="empty-mark">${icon('check')}</div><h3>No tickets to review.</h3><p>Tickets that need a closer look will appear here.<br>Keep scanning to record the next ticket.</p><button class="btn dark" data-view="checkin">Back to check-in ${icon('arrow')}</button></div>`}</section>`}
-function bind(){document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>navigate(b.dataset.view));$('.brand').onclick=e=>{e.preventDefault();navigate('checkin')};$('#start-camera')?.addEventListener('click',startCamera);$('#stop-camera')?.addEventListener('click',()=>{registering=false;stopCamera();render()});$('#upload-btn')?.addEventListener('click',()=>$('#qr-upload').click());$('#qr-upload').onchange=uploadQR;$('#qr-upload').oncancel=()=>{registering=false};$('#register-existing')?.addEventListener('click',registrationStart);$('#manual-btn')?.addEventListener('click',manualDialog);$('#sample-tickets')?.addEventListener('click',sampleTickets);document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{const kind=b.dataset.demo;processTicket(kind==='success'?(state.attendees.find(a=>!a.checkedIn)?.id||'DIBI-0001'):kind==='duplicate'?'DIBI-0004':'DIBI-9999','Demo scan')});$('#attendee-search')?.addEventListener('input',e=>{search=e.target.value;$('#attendee-results').innerHTML=attendeeRows();bindRows()});document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});bindRows();$('#export')?.addEventListener('click',exportCsv);document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=()=>reviewIssue(b.dataset.resolve));$('#modal').addEventListener('close',()=>{previousFocus?.focus()});}
+function bind(){document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>navigate(b.dataset.view));$('.brand').onclick=e=>{e.preventDefault();navigate('checkin')};$('#start-camera')?.addEventListener('click',startCamera);$('#stop-camera')?.addEventListener('click',()=>{registering=false;stopCamera();render()});$('#upload-btn')?.addEventListener('click',()=>$('#qr-upload').click());$('#qr-upload').onchange=uploadQR;$('#qr-upload').oncancel=()=>{registering=false};$('#register-existing')?.addEventListener('click',registrationStart);$('#manual-btn')?.addEventListener('click',manualDialog);$('#sample-tickets')?.addEventListener('click',sampleTickets);document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{const kind=b.dataset.demo;processTicket(kind==='success'?(state.attendees.find(a=>!a.checkedIn)?.id||'DIBI-0001'):kind==='duplicate'?'DIBI-0004':'DIBI-9999','Demo scan')});$('#attendee-search')?.addEventListener('input',e=>{search=e.target.value;$('#attendee-results').innerHTML=attendeeRows();bindRows()});document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});bindRows();$('#export')?.addEventListener('click',exportCsv);document.querySelectorAll('[data-resolve]').forEach(b=>b.onclick=()=>reviewIssue(b.dataset.resolve));$('#modal').addEventListener('close',()=>{clearResultTimer();previousFocus?.focus()});$('#modal').addEventListener('cancel',event=>{event.preventDefault();closeDialog()});}
 function bindRows(){document.querySelectorAll('[data-attendee]').forEach(b=>b.onclick=()=>confirmGuest(b.dataset.attendee))}
 function navigate(next){stopCamera();registering=false;view=next;render()}
 function openDialog(html,tone){
- stopCamera();previousFocus=document.activeElement;
+ clearResultTimer();if(!tone)stopCamera();previousFocus=document.activeElement;
  const dialog=$('#modal');
  dialog.innerHTML=`<button class="dialog-close" aria-label="Close dialog">${icon('close')}</button>${html}`;
  dialog.className=tone?'status-screen scan-result':($('#next-ticket')?'scan-result':'');
@@ -94,23 +95,46 @@ function openDialog(html,tone){
   dialog.setAttribute('aria-labelledby','scan-outcome');
  }
  dialog.setAttribute('aria-label',dialog.querySelector('h2')?.textContent||'Ticket details');
+ if(tone&&stream){
+  dialog.querySelector('.modal-actions').insertAdjacentHTML('beforeend','<button class="text-btn centered" id="result-stop-camera">Turn camera off</button>');
+  $('#result-stop-camera').onclick=()=>{stopCamera();$('#result-stop-camera').textContent='Camera off';$('#result-stop-camera').disabled=true;dialog.querySelector('.auto-scan-note')?.remove()};
+  if(tone==='success'){
+   dialog.querySelector('.modal-actions').insertAdjacentHTML('beforeend','<p class="auto-scan-note">Scanning resumes automatically</p>');
+   resultTimer=setTimeout(()=>{if(stream&&dialog.open)continueScanning()},1400);
+  }
+ }
+ dialog.onpointerdown=clearResultTimer;dialog.onkeydown=clearResultTimer;
  dialog.showModal();$('.dialog-close').onclick=closeDialog;
  if(tone)dialog.querySelector('h2').focus({preventScroll:true});
 }
 
-function closeDialog(){registering=false;$('#modal').close();if(view==='checkin')render()}
+function clearResultTimer(){clearTimeout(resultTimer);resultTimer=null;const note=$('.auto-scan-note');if(note)note.textContent='Scan next when you’re ready'}
+function closeDialog(){clearResultTimer();registering=false;$('#modal').close();if(view==='checkin'&&!stream)render()}
+function continueScanning(){closeDialog();if(view!=='checkin')navigate('checkin')}
+function refreshAfterScan(){
+ if(!stream||view!=='checkin'){render();return}
+ // Keep the same video element and MediaStream while updating the dashboard.
+ const count=state.attendees.filter(a=>a.checkedIn).length;
+ const total=workspace==='desk'?Math.max(state.target||300,count):Math.max(state.attendees.length,1);
+ $('.count').innerHTML=`${count}<span> / ${total}</span>`;
+ const progress=$('.progress-track');progress.setAttribute('aria-valuenow',count);progress.setAttribute('aria-valuemax',total);progress.firstElementChild.style.width=`${count/total*100}%`;
+ const template=document.createElement('template');template.innerHTML=checkinView();
+ $('.activity-card').replaceWith(template.content.querySelector('.activity-card'));
+ document.querySelectorAll('.activity-card [data-view]').forEach(button=>button.onclick=()=>navigate(button.dataset.view));
+ const queueButton=$('nav [data-view="queue"]');queueButton.innerHTML=`Help queue${state.queue.length?`<span class="nav-count">${state.queue.length}</span>`:''}`;
+}
 function processTicket(id,method='QR scan'){
- stopCamera();
+ if(method!=='QR scan'||registering)stopCamera();
  if(workspace==='desk'){
   registering=false;
-  try{result=recordTicketScan(state,id,method);result.method=method;result.scannedCode=id;save();render();if(result.status==='shared'){sharedGuestLookup();return}showScanResult()}
-  catch(err){render();showScanFailure('Scan failed',err.message,method)}
+  try{result=recordTicketScan(state,id,method);result.method=method;result.scannedCode=id;save();refreshAfterScan();if(result.status==='shared'){sharedGuestLookup();return}showScanResult()}
+  catch(err){refreshAfterScan();showScanFailure('Scan failed',err.message,method)}
   return;
  }
  if(registering){registering=false;render();if((state.sharedQRCodes||[]).includes(id)){sharedGuestLookup();return}const existing=findAttendee(state,id);if(existing){confirmGuest(existing.id);return}registrationDialog(id);return}
- result=checkIn(state,id,method);result.method=method;result.scannedCode=id;save();render();if(result.status==='shared'){sharedGuestLookup();return}showResult()
+ result=checkIn(state,id,method);result.method=method;result.scannedCode=id;save();refreshAfterScan();if(result.status==='shared'){sharedGuestLookup();return}showResult()
 }
-function showResult(){const a=result.attendee, success=result.status==='success',duplicate=result.status==='duplicate';openDialog(`<div class="result ${success?'success':'problem'}"><div class="result-symbol">${icon(success?'check':duplicate?'warning':'close')}</div><span class="eyebrow">${success?'YOU’RE ON THE LIST':duplicate?'LET’S DOUBLE-CHECK':'A LITTLE HELP NEEDED'}</span><h2>${success?'You’re in. Welcome!':duplicate?'Already checked in':'Ticket not found'}</h2><p>${success?'Check-in recorded.':duplicate?`This ticket was checked in at ${time(a.checkedIn)}. Check the guest’s details before letting them through.`:'We couldn’t match this QR code to today’s guest list. Try a name search or ask the help desk.'}</p>${a?`<div class="guest-ticket"><span class="person-avatar">${esc(a.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</span><div><h3>${esc(a.name)}</h3><p>${esc(a.company)} · ${a.type}</p><code>${a.id}</code></div></div>`:`<code class="unknown-code">${esc(result.id.slice(0,100))}</code>`}${success?`<div class="staff-action"><span class="small-label">YOUR NEXT STEP</span><p>Hand over their badge and point them towards the event.</p></div><button class="btn dark full" id="next-guest">Scan next guest ${icon('arrow')}</button>`:`<button class="btn dark full" id="find-guest">${icon('search')}Find attendee by name</button>${!duplicate?`<button class="btn outline full" id="register-scanned">Register this QR to a guest ${icon('arrow')}</button>`:''}<button class="btn outline full" id="send-help">Send to help queue ${icon('arrow')}</button><button class="text-btn centered" id="try-again">Try another ticket</button>`}</div>`,success?'success':duplicate?'duplicate':'error');$('#next-guest')?.addEventListener('click',()=>{const resume=result.method==='QR scan',previousCode=result.scannedCode;closeDialog();navigate('checkin');if(resume)startCamera({previousCode})});$('#find-guest')?.addEventListener('click',()=>{closeDialog();navigate('attendees');$('#attendee-search').focus()});$('#register-scanned')?.addEventListener('click',()=>registrationDialog(result.id));$('#send-help')?.addEventListener('click',()=>{const added=addToQueue(state,result);save();closeDialog();render();toast(added?'Added to help queue. Direct the guest to the help desk.':'This ticket is already in the help queue.')});$('#try-again')?.addEventListener('click',()=>{closeDialog();navigate('checkin')})}
+function showResult(){const a=result.attendee, success=result.status==='success',duplicate=result.status==='duplicate';openDialog(`<div class="result ${success?'success':'problem'}"><div class="result-symbol">${icon(success?'check':duplicate?'warning':'close')}</div><span class="eyebrow">${success?'YOU’RE ON THE LIST':duplicate?'LET’S DOUBLE-CHECK':'A LITTLE HELP NEEDED'}</span><h2>${success?'You’re in. Welcome!':duplicate?'Already checked in':'Ticket not found'}</h2><p>${success?'Check-in recorded.':duplicate?`This ticket was checked in at ${time(a.checkedIn)}. Check the guest’s details before letting them through.`:'We couldn’t match this QR code to today’s guest list. Try a name search or ask the help desk.'}</p>${a?`<div class="guest-ticket"><span class="person-avatar">${esc(a.name.split(' ').map(n=>n[0]).slice(0,2).join(''))}</span><div><h3>${esc(a.name)}</h3><p>${esc(a.company)} · ${a.type}</p><code>${a.id}</code></div></div>`:`<code class="unknown-code">${esc(result.id.slice(0,100))}</code>`}${success?`<div class="staff-action"><span class="small-label">YOUR NEXT STEP</span><p>Hand over their badge and point them towards the event.</p></div><button class="btn dark full" id="next-guest">Scan next guest ${icon('arrow')}</button>`:`<button class="btn dark full" id="find-guest">${icon('search')}Find attendee by name</button>${!duplicate?`<button class="btn outline full" id="register-scanned">Register this QR to a guest ${icon('arrow')}</button>`:''}<button class="btn outline full" id="send-help">Send to help queue ${icon('arrow')}</button><button class="text-btn centered" id="try-again">Try another ticket</button>`}</div>`,success?'success':duplicate?'duplicate':'error');$('#next-guest')?.addEventListener('click',continueScanning);$('#find-guest')?.addEventListener('click',()=>{closeDialog();navigate('attendees');$('#attendee-search').focus()});$('#register-scanned')?.addEventListener('click',()=>registrationDialog(result.id));$('#send-help')?.addEventListener('click',()=>{const added=addToQueue(state,result);save();closeDialog();refreshAfterScan();toast(added?'Added to help queue. Direct the guest to the help desk.':'This ticket is already in the help queue.')});$('#try-again')?.addEventListener('click',continueScanning)}
 function manualDialog(){openDialog(`<div class="dialog-body"><span class="eyebrow">MANUAL CHECK-IN</span><h2>Enter ticket code.</h2><p>Enter the code printed below the guest’s QR code.</p><form id="ticket-form"><label for="ticket-code">Ticket code</label><input id="ticket-code" placeholder="e.g. DEMO-EB-001" required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="8192"><button class="btn dark full">Check ticket ${icon('arrow')}</button></form></div>`);$('#ticket-form').onsubmit=e=>{e.preventDefault();const id=$('#ticket-code').value.trim();if(id)processTicket(id,'Ticket code')};$('#ticket-code').focus()}
 function confirmGuest(id){if(workspace==='desk'){ticketDetails(id);return}const a=state.attendees.find(a=>a.id===id);openDialog(`<div class="dialog-body"><span class="eyebrow">${a.checkedIn?'GUEST DETAILS':'STAFF CHECK-IN'}</span><h2>${esc(a.name)}</h2><p>${esc(a.company)} · ${a.type}</p><div class="info-box"><strong>${a.id}</strong><p>${a.checkedIn?`Checked in at ${time(a.checkedIn)}.`:'Confirm the guest’s name and ticket details, then check them in.'}</p>${a.email?`<p>${esc(a.email)}</p>`:''}</div>${workspace==='desk'?`<button class="btn outline full" id="edit-details">Edit guest details</button>`:''}<button class="btn dark full" id="confirm-checkin">${a.checkedIn?'Back to attendees':'Confirm check-in'} ${icon('arrow')}</button></div>`);$('#edit-details')?.addEventListener('click',()=>editGuestDetails(id));$('#confirm-checkin').onclick=()=>a.checkedIn?closeDialog():processTicket(id,'Staff check-in')}
 function reviewIssue(ticket){const q=state.queue.find(q=>q.ticket===ticket);openDialog(`<div class="dialog-body"><span class="eyebrow">STAFF FOLLOW-UP</span><h2>${esc(q.name)}</h2><p>${esc(q.reason)} · ${esc(q.ticket)}</p><div class="info-box"><strong>Check before resolving</strong><p>${q.reason==='Already checked in'?'Confirm the guest’s identity and whether they are returning. Resolving this item will not add another check-in.':'Search the guest list and verify the booking. A matched guest can be checked in from their record. Resolving this item alone does not grant entry.'}</p></div><button class="btn dark full" id="queue-search">Find guest ${icon('search')}</button><button class="btn outline full" id="resolve-issue">Mark issue resolved ${icon('check')}</button></div>`);$('#queue-search').onclick=()=>{closeDialog();navigate('attendees')};$('#resolve-issue').onclick=()=>{state.queue=state.queue.filter(q=>q.ticket!==ticket);save();closeDialog();render();toast('Issue resolved. Attendance count unchanged.')}}
@@ -126,10 +150,11 @@ async function startCamera({previousCode=null}={}){
   if(generation!==cameraGeneration)return;
   video.hidden=false;$('#scanner-content').hidden=true;$('#stop-camera').hidden=false;
   $('#camera-status').textContent='Camera on · place one QR inside the frame';
-  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true}),gate=createScanGate(previousCode);
-  let last=0;
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  let last=0,gate=createScanGate(previousCode);
   function tick(now){
    if(!stream||generation!==cameraGeneration)return;
+   if($('#modal')?.open){frame=requestAnimationFrame(tick);return}
    if(now-last>160&&video.readyState>=2&&video.videoWidth>0&&video.videoHeight>0){
     last=now;
     const crop=guideCrop(video.videoWidth,video.videoHeight,video.getBoundingClientRect(),$('.live-scan-frame').getBoundingClientRect());
@@ -139,7 +164,7 @@ async function startCamera({previousCode=null}={}){
      const pixels=ctx.getImageData(0,0,canvas.width,canvas.height),code=jsQR(pixels.data,pixels.width,pixels.height)?.data||null;
      const accepted=gate.read(code,now);
      $('#camera-status').textContent=code===previousCode&&gate.waitingForRemoval?'Move the previous ticket out of the frame':'Camera on · place one QR inside the frame';
-     if(accepted){processTicket(accepted);return}
+     if(accepted){gate=createScanGate(accepted);previousCode=accepted;processTicket(accepted)}
     }
    }
    frame=requestAnimationFrame(tick);
@@ -150,7 +175,7 @@ async function startCamera({previousCode=null}={}){
   registering=false;stopCamera();render();showScanFailure('Camera unavailable',err.name==='NotAllowedError'?'Allow camera access in your browser, or enter the printed ticket code.':'Try again, upload a QR image or enter the printed ticket code.','QR scan',true);
  }
 }
-function stopCamera(){cameraGeneration++;if(frame)cancelAnimationFrame(frame);stream?.getTracks().forEach(t=>t.stop());stream=null;frame=null}
+function stopCamera(){clearResultTimer();cameraGeneration++;if(frame)cancelAnimationFrame(frame);stream?.getTracks().forEach(t=>t.stop());stream=null;frame=null}
 async function uploadQR(event){
  const file=event.target.files[0];if(!file)return;
  stopCamera();const generation=cameraGeneration;
@@ -210,9 +235,9 @@ function editGuestDetails(id){
 function showScanResult(){
  const a=result.attendee,success=result.status==='success';
  openDialog(`<div class="result ${success?'success':'problem'}"><div class="result-symbol">${icon(success?'check':'warning')}</div><span class="eyebrow">${success?'RECORDED':'DUPLICATE SCAN'}</span><h2>${success?'Ticket scanned':'Already scanned'}</h2><p>${success?'Recorded. Ready for the next ticket.':`First scanned at ${time(a.checkedIn)}. It hasn’t been counted again.`}</p><div class="scan-receipt"><span class="small-label">TICKET / QR CODE</span><code>${esc(result.scannedCode||a.qrCodes?.[0]||a.id)}</code><span>Recorded at ${time(a.checkedIn)}</span>${a.detailsCollected?`<strong>${esc(a.name)}</strong>`:''}</div></div><div class="modal-actions"><button class="btn dark full" id="next-ticket">Scan next ticket ${icon('arrow')}</button>${!success?`<button class="btn outline full" id="scan-help">Send to help queue</button>`:''}<button class="text-btn centered" id="open-scan-log">View scan log</button></div>`,success?'success':'duplicate');
- $('#next-ticket').onclick=()=>{const resume=result.method==='QR scan',previousCode=result.scannedCode;closeDialog();navigate('checkin');if(resume)startCamera({previousCode})};
+ $('#next-ticket').onclick=continueScanning;
  $('#open-scan-log').onclick=()=>{closeDialog();navigate('attendees')};
- $('#scan-help')?.addEventListener('click',()=>{addToQueue(state,result);save();closeDialog();render();toast('Duplicate ticket added to the help queue.')});
+ $('#scan-help')?.addEventListener('click',()=>{addToQueue(state,result);save();closeDialog();refreshAfterScan();toast('Duplicate ticket added to the help queue.')});
 }
 function scanLogView(){
  return `<section class="list-card"><div class="list-toolbar"><label class="search-field">${icon('search')}<input id="attendee-search" type="search" placeholder="Search ticket or QR code" value="${esc(search)}" aria-label="Search scan log"></label><button class="btn outline" id="export">${icon('download')}Export</button></div><div id="attendee-results">${scanLogRows()}</div></section>`;
@@ -243,7 +268,7 @@ syncVisualViewport();
 function showScanFailure(title,message,method='QR scan',cameraError=false){
  registering=false;
  openDialog(`<div class="result problem"><div class="result-symbol">${icon('close')}</div><span class="eyebrow">NOT RECORDED</span><h2>${esc(title)}</h2><p ${cameraError?'class="camera-error"':''}>${esc(message)}</p><div class="failure-note">No ticket has been added.</div></div><div class="modal-actions"><button class="btn dark full" id="retry-scan">${method==='QR image'?'Upload another image':method==='QR scan'?'Try camera again':'Enter ticket code'} ${icon('arrow')}</button>${method==='Ticket code'?'':'<button class="btn outline full" id="failure-manual">Enter ticket code</button>'}<button class="text-btn centered" id="failure-back">Back to scanner</button></div>`,'error');
- $('#retry-scan').onclick=()=>{closeDialog();navigate('checkin');if(method==='QR image')$('#qr-upload').click();else if(method==='QR scan')startCamera();else manualDialog()};
+ $('#retry-scan').onclick=()=>{if(method==='QR scan'&&stream){continueScanning();return}closeDialog();navigate('checkin');if(method==='QR image')$('#qr-upload').click();else if(method==='QR scan')startCamera();else manualDialog()};
  $('#failure-manual')?.addEventListener('click',manualDialog);
- $('#failure-back').onclick=()=>{closeDialog();navigate('checkin')};
+ $('#failure-back').onclick=continueScanning;
 }

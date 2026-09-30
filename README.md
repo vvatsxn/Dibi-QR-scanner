@@ -18,13 +18,13 @@ The app opens in **Staff check-in**, with no fictional attendees in the desk log
 1. Choose **Open camera** and scan the guest’s existing ticket QR. **Upload QR image** and **Enter ticket code** are alternatives.
 2. A first scan records the QR value and timestamp immediately, increments the count, and shows **Ticket scanned**. There is no registration form.
 3. The same ticket scanned again shows **Already scanned**, including the first timestamp. It does not increase the count or create a second record.
-4. Choose **Scan next ticket**. After a camera scan, this opens the camera again. Move the previous ticket away and hold the next QR inside the guide. Only the guide area is scanned; a briefly stable new code is required. To intentionally scan the same ticket again, clear the guide for a moment and then re-present it.
+4. After a successful camera scan, the green result displays briefly and scanning resumes automatically. **Scan next ticket** returns immediately. The same camera stream stays open throughout, so there is no restart between tickets. Amber and red results stay visible for staff review. Move the previous ticket away and hold the next QR inside the guide. Only the guide area is scanned; a briefly stable new code is required. To intentionally scan the same ticket again, clear the guide for a moment and then re-present it.
 
 When an uploaded image contains multiple readable QR codes, choose the individual ticket before anything is recorded. The result displays the exact code just scanned.
 
 **Scan log** lists recorded tickets, supports searching by ticket/QR code, and exports a CSV. Previously collected guest details are preserved. Adding a name, email or company remains optional under an individual ticket’s details.
 
-Scan results fill the screen: **green** for a recorded ticket, **amber** for an already-scanned ticket and **red** for an unsuccessful scan. A short symbol animation confirms the outcome; reduced-motion preferences disable it. Results stay visible until staff choose the next action. Unreadable images, invalid QR content and camera errors offer retry or manual-entry actions without increasing the count.
+Scan results fill the screen: **green** for a recorded ticket, **amber** for an already-scanned ticket and **red** for an unsuccessful scan. A short symbol animation confirms the outcome; reduced-motion preferences disable it. Successful camera results return to scanning after 1.4 seconds; touching a result or using the keyboard pauses this automatic return. Other results stay visible until staff choose the next action. Unreadable images, invalid QR content and camera errors offer retry or manual-entry actions without increasing the count.
 
 Duplicate tickets can be sent to the help queue for staff follow-up.
 
@@ -50,7 +50,7 @@ The desk log uses `dibi-desk-v2` in localStorage. The previous `dibi-demo-v1` da
 
 Data is saved only in this browser on this device. Multiple staff devices do not share scans or duplicate detection. Shared-device operation needs a backend and staff access controls.
 
-Camera access requires localhost or HTTPS and browser permission. No camera images are uploaded. Opening a result or leaving the scanner stops the camera. DiBi’s Clash Display and Satoshi fonts are bundled locally, with system sans-serif fallbacks.
+Camera access requires localhost or HTTPS and browser permission. No camera images are uploaded. Use **Turn camera off** on the scanner or a camera result to end the session. Opening a scan result pauses decoding while keeping the camera live. Leaving the scanner, opening manual entry, switching workspaces or hiding the browser tab stops the camera. DiBi’s Clash Display and Satoshi fonts are bundled locally, with system sans-serif fallbacks.
 
 ## Verification
 
