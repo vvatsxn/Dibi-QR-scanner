@@ -18,7 +18,9 @@ The app opens in **Staff check-in**, with no fictional attendees in the desk log
 1. Choose **Open camera** and scan the guest’s existing ticket QR. **Upload QR image** and **Enter ticket code** are alternatives.
 2. A first scan records the QR value and timestamp immediately, increments the count, and shows **Ticket scanned**. There is no registration form.
 3. The same ticket scanned again shows **Already scanned**, including the first timestamp. It does not increase the count or create a second record.
-4. Choose **Scan next ticket**. After a camera scan, this opens the camera again.
+4. Choose **Scan next ticket**. After a camera scan, this opens the camera again. Move the previous ticket away and hold the next QR inside the guide. Only the guide area is scanned; a briefly stable new code is required. To intentionally scan the same ticket again, clear the guide for a moment and then re-present it.
+
+When an uploaded image contains multiple readable QR codes, choose the individual ticket before anything is recorded. The result displays the exact code just scanned.
 
 **Scan log** lists recorded tickets, supports searching by ticket/QR code, and exports a CSV. Previously collected guest details are preserved. Adding a name, email or company remains optional under an individual ticket’s details.
 
@@ -63,9 +65,10 @@ For browser checks, start the dev server, install Chromium with `npx playwright 
 npm run test:desk
 npm run test:browser
 npm run test:mobile
+npm run test:scanner
 ```
 
-An existing compatible Chromium can be selected with `PLAYWRIGHT_EXECUTABLE_PATH`. Tests use isolated sessions and sample data. Mobile checks cover touch navigation, QR uploads, repeat scans, long QR payloads, guest-detail forms and landscape at phone widths from 320–430 pixels. These are browser emulations, not physical-device camera tests.
+An existing compatible Chromium can be selected with `PLAYWRIGHT_EXECUTABLE_PATH`. Tests use isolated sessions and sample data. Mobile checks cover touch navigation, QR uploads, repeat scans, long QR payloads, guest-detail forms and landscape at phone widths from 320–430 pixels. The scanner regression test uses a simulated live video stream with different QR codes inside and outside the guide, then tests a two-ticket image upload. These are browser emulations, not physical-device camera tests.
 
 ## Brand reference
 
