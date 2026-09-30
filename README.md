@@ -24,6 +24,10 @@ The app opens in **Staff check-in**, with no fictional attendees in the desk log
 
 Duplicate tickets can be sent to the help queue for staff follow-up.
 
+## On a phone
+
+The scanner uses the rear camera when available. Bottom navigation stays within thumb reach, the scan log becomes a vertical list, and the next-ticket action stays visible while longer ticket details scroll. Layouts account for phone safe areas and the on-screen keyboard; ticket entry disables automatic capitalisation and spelling changes.
+
 ## QR identities
 
 The scanner records exact text payloads, including ticket codes and full booking URLs. External values are case-sensitive; links are never opened or fetched. New codes are recorded without needing a preloaded attendee list. This is a scan log, not independent booking or payment validation.
@@ -56,9 +60,10 @@ For browser checks, start the dev server, install Chromium with `npx playwright 
 ```sh
 npm run test:desk
 npm run test:browser
+npm run test:mobile
 ```
 
-An existing compatible Chromium can be selected with `PLAYWRIGHT_EXECUTABLE_PATH`. Tests use isolated sessions and sample data.
+An existing compatible Chromium can be selected with `PLAYWRIGHT_EXECUTABLE_PATH`. Tests use isolated sessions and sample data. Mobile checks cover touch navigation, QR uploads, repeat scans, long QR payloads, guest-detail forms and landscape at phone widths from 320–430 pixels. These are browser emulations, not physical-device camera tests.
 
 ## Brand reference
 
